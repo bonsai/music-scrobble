@@ -33,7 +33,7 @@ jobs:
           echo "Building houdini-mcp..."
           go mod tidy
           go build -o houdini-mcp houdini-mcp.go
-          ls -la houdini-mcp
+          ls -la houdini-mcp || dir houdini-mcp
 
       - name: Test houdini-mcp (Linux)
         if: runner.os == 'Linux'
