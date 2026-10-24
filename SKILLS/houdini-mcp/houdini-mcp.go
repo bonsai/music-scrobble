@@ -130,10 +130,16 @@ func callTool(server *Server, name string) (*ToolResult, error) {
 		} else {
 			status = "❌ Houdini not found"
 		}
+		binaryPath := binary
+		if binaryPath == "" { binaryPath = "not found" }
+		hePath := filepath.Join(server.HOUDINI_PATH, "hengine.exe")
+		hePathStr := "not found"
+		if _, err := os.Stat(hePath); err == nil { hePathStr = hePath }
 		return &ToolResult{
-			Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("%s\nPath: %s\nVersion: %s\nBinary: %s\nHEngine: %s",
-				status, server.HOUDINI_PATH, server.HOUDINI_VERSION,
-				boolStr(binary != "", binary), boolStr(filepath.Join(server.HOUDINI_PATH, "hengine.exe") != "", filepath.Join(server.HOUDINI_PATH, "hengine.exe")))},
+			Content: []ToolContent{
+				{Type: "text", Text: fmt.Sprintf("%s\nPath: %s\nVersion: %s\nBinary: %s\nHEngine: %s",
+					status, server.HOUDINI_PATH, server.HOUDINI_VERSION, binaryPath, hePathStr)},
+			},
 		}, nil
 	case "list_dcc_plugins":
 		dccDir := filepath.Clean(filepath.Join(server.HOUDINI_PATH, ".."))
@@ -223,7 +229,7 @@ func handleRequest(req Request) (Response, error) {
 	server := NewServer{
 		Name:            "houdini-mcp",
 		Version:         "0.1.0",
-		HOUDINI_PATH:    "C:\Program Files\Side Effects Software\Houdini Engine\Houdini",
+		HOUDINI_PATH:    "C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini",
 		HOUDINI_VERSION: "19.5.682",
 	}
 
