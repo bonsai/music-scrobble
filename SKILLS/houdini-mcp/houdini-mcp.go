@@ -1,5 +1,3 @@
-// +build ignore
-
 package main
 
 import (
@@ -10,10 +8,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
-// Request represents an incoming JSON-RPC request
+// Request represents an incoming JSON-RPC/MCP message
 type Request struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
@@ -29,21 +26,22 @@ type Response struct {
 	Error   *ErrorObject    `json:"error,omitempty"`
 }
 
+// ErrorObject represents a JSON-RPC error
 type ErrorObject struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
-// Tool represents an MCP tool
+// Tool represents an available MCP tool
 type Tool struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description,omitempty"`
+	Name        string       `json:"name"`
+	Description string       `json:"description,omitempty"`
 	InputSchema *InputSchema `json:"inputSchema,omitempty"`
 }
 
 type InputSchema struct {
-	Type                 string                 `json:"type"`
-	Properties           map[string]interface{} `json:"properties,omitempty"`
+	Type                string                 `json:"type"`
+	Properties          map[string]interface{} `json:"properties,omitempty"`
 	AdditionalProperties bool                   `json:"additionalProperties,omitempty"`
 }
 
@@ -93,10 +91,11 @@ func getResources() []Resource {
 
 // findHoudiniBinary searches for houdini executable
 func findHoudiniBinary() string {
+	path := "C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini"
 	candidates := []string{
-		filepath.Join("C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini", "bin", "houdini.exe"),
-		filepath.Join("C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini", "houdini.exe"),
-		filepath.Join("C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini", "bin", "houdini-bin.exe"),
+		filepath.Join(path, "bin", "houdini.exe"),
+		filepath.Join(path, "houdini.exe"),
+		filepath.Join(path, "bin", "houdini-bin.exe"),
 	}
 	for _, p := range candidates {
 		if _, err := os.Stat(p); err == nil {
@@ -132,9 +131,11 @@ func callTool(server *Server, name string) (*ToolResult, error) {
 			status = "❌ Houdini not found"
 		}
 		return &ToolResult{
-			Content: []ToolContent{
-				{Type: "text", Text: fmt.Sprintf("%s\nPath: %s\nVersion: %s\nBinary: %s", status, server.HOUDINI_PATH, server.HOUDINI_VERSION, binary)},
-			},
+			Content: []ToolContent{{
+				Type: "text",
+				Text: fmt.Sprintf("%s\nPath: %s\nVersion: %s\nBinary: %s\nHEngine: %s",
+					status, server.HOUDINI_PATH, server.HOUDINI_VERSION, binary, filepath.Join(server.HOUDINI_PATH, "hengine.exe")),
+			}},
 		}, nil
 	case "list_dcc_plugins":
 		dccDir := filepath.Clean(filepath.Join(server.HOUDINI_PATH, ".."))
@@ -152,6 +153,7 @@ func callTool(server *Server, name string) (*ToolResult, error) {
 			Content: []ToolContent{{Type: "text", Text: strings.Join(lines, "\n")}},
 		}, nil
 	case "get_license_status":
+		binary := findHoudiniBinary()
 		sesictrl := filepath.Join(server.HOUDINI_PATH, "bin", "sesictrl.exe")
 		if _, err := os.Stat(sesictrl); err != nil {
 			return &ToolResult{Content: []ToolContent{{Type: "text", Text: "❌ sesictrl not found"}}}, nil
@@ -160,6 +162,7 @@ func callTool(server *Server, name string) (*ToolResult, error) {
 		if err != nil {
 			return &ToolResult{Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("License check failed: %s", err)}}}, nil
 		}
+		_ = binary
 		return &ToolResult{Content: []ToolContent{{Type: "text", Text: out}}}, nil
 	case "get_install_path":
 		return &ToolResult{Content: []ToolContent{{Type: "text", Text: server.HOUDINI_PATH}}}, nil
@@ -173,10 +176,9 @@ func readResource(server *Server, uri string) ([]byte, error) {
 	switch uri {
 	case "houdini://install-info":
 		info := map[string]interface{}{
-			"path":         server.HOUDINI_PATH,
-			"version":      server.HOUDINI_VERSION,
-			"binary":       findHoudiniBinary(),
-			"hengine":      filepath.Join(server.HOUDINI_PATH, "bin", "hengine.exe"),
+			"path":    server.HOUDINI_PATH,
+			"version": server.HOUDINI_VERSION,
+			"binary":  findHoudiniBinary(),
 		}
 		return json.Marshal(info)
 	case "houdini://license":
@@ -194,42 +196,7 @@ func readResource(server *Server, uri string) ([]byte, error) {
 	}
 }
 
-// Main handles JSON-RPC requests
-func main() {
-	server := &Server{
-		Name:            "houdini-mcp",
-		Version:         "0.1.0",
-		HOUDINI_PATH:    "C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini",
-		HOUDINI_VERSION: "19.5.682",
-	}
-
-	scanner := bufio.NewScanner(os.Stdin)
-	buf := make([]byte, 1024*1024)
-	scanner.Buffer(buf, 10*1024*1024)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-
-		var req Request
-		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to parse request: %v\n", err)
-			continue
-		}
-
-		resp := handleRequest(server, req)
-		out, _ := json.Marshal(resp)
-		fmt.Println(string(out))
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "scanner error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
+// handleRequest processes an MCP request
 func handleRequest(server *Server, req Request) Response {
 	switch req.Method {
 	case "initialize":
@@ -243,7 +210,7 @@ func handleRequest(server *Server, req Request) Response {
 					"version": server.Version,
 				},
 				"capabilities": map[string]interface{}{
-					"tools":    map[string]interface{}{},
+					"tools":     map[string]interface{}{},
 					"resources": map[string]interface{}{},
 				},
 			},
@@ -319,5 +286,41 @@ func handleRequest(server *Server, req Request) Response {
 			ID:      req.ID,
 			Error:   &ErrorObject{Code: -32601, Message: fmt.Sprintf("Method not found: %s", req.Method)},
 		}
+	}
+}
+
+// main handles JSON-RPC requests on stdio
+func main() {
+	server := &Server{
+		Name:            "houdini-mcp",
+		Version:         "0.1.0",
+		HOUDINI_PATH:    "C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini",
+		HOUDINI_VERSION: "19.5.682",
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	buf := make([]byte, 1024*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		var req Request
+		if err := json.Unmarshal([]byte(line), &req); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to parse request: %v\n", err)
+			continue
+		}
+
+		resp := handleRequest(server, req)
+		out, _ := json.Marshal(resp)
+		fmt.Println(string(out))
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "scanner error: %v\n", err)
+		os.Exit(1)
 	}
 }
