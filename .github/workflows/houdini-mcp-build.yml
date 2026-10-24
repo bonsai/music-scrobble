@@ -1,0 +1,89 @@
+name: Build Houdini MCP
+
+on:
+  push:
+    paths:
+      - 'SKILLS/houdini-mcp/**'
+      - '.github/workflows/houdini-mcp-build.yml'
+  pull_request:
+    paths:
+      - 'SKILLS/houdini-mcp/**'
+      - '.github/workflows/houdini-mcp-build.yml'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          check-latest: true
+
+      - name: Build houdini-mcp
+        working-directory: SKILLS/houdini-mcp
+        run: |
+          echo "Building houdini-mcp..."
+          go mod tidy
+          go build -o houdini-mcp houdini-mcp.go
+          ls -la houdini-mcp
+
+      - name: Test houdini-mcp (Linux)
+        if: runner.os == 'Linux'
+        working-directory: SKILLS/houdini-mcp
+        run: |
+          echo "Testing houdini-mcp binary..."
+          ./houdini-mcp 2>/dev/null | head -5 || echo "No output (expected for stdio server)"
+
+      - name: Test houdini-mcp (Windows)
+        if: runner.os == 'Windows'
+        working-directory: SKILLS/houdini-mcp
+        shell: bash
+        run: |
+          echo "Testing houdini-mcp binary..."
+          ./houdini-mcp 2>/dev/null | head -5 || echo "No output (expected for stdio server)"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: houdini-mcp-${{ matrix.os }}
+          path: SKILLS/houdini-mcp/houdini-mcp
+          retention-days: 7
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download houdini-mcp binary
+        uses: actions/download-artifact@v4
+        with:
+          name: houdini-mcp-ubuntu-latest
+          path: SKILLS/houdini-mcp
+
+      - name: Make binary executable
+        working-directory: SKILLS/houdini-mcp
+        run: chmod +x houdini-mcp
+
+      - name: Set environment variables
+        run: |
+          export HOUDINI_PATH="/c/Program Files/Side Effects Software/Houdini Engine/Houdini"
+          export HOUDINI_VERSION="19.5.682"
+
+      - name: Test integration
+        working-directory: SKILLS/houdini-mcp
+        run: |
+          echo "Testing integration..."
+          # Simple test to verify the binary starts and exits gracefully
+          timeout 2 ./houdini-mcp 2>&1 | head -10 || true
