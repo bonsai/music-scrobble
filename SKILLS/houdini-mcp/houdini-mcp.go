@@ -10,34 +10,21 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
-// Server represents the MCP server state
-type Server struct {
-	Name            string
-	Version         string
-	HOUDINI_PATH    string
-	HOUDINI_VERSION string
-}
-
-// Tool represents an available tool
-type Tool struct {
-	Name        string
-	Description string
-	InputSchema *InputSchema
-}
-
-// InputSchema defines the input schema for a tool
-type InputSchema struct {
-	Type                 string      `json:"type"`
-	Properties           map[string]interface{} `json:"properties,omitempty"`
-	AdditionalProperties  bool        `json:"additionalProperties,omitempty"`
+// Request represents an incoming JSON-RPC request
+type Request struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method,omitempty"`
+	Params  json.RawMessage `json:"params,omitempty"`
 }
 
 // Response represents an MCP response
 type Response struct {
 	JSONRPC string          `json:"jsonrpc"`
-	ID      string          `json:"id,omitempty"`
+	ID      json.RawMessage `json:"id,omitempty"`
 	Result  interface{}     `json:"result,omitempty"`
 	Error   *ErrorObject    `json:"error,omitempty"`
 }
@@ -47,32 +34,48 @@ type ErrorObject struct {
 	Message string `json:"message"`
 }
 
+// Tool represents an MCP tool
+type Tool struct {
+	Name        string      `json:"name"`
+	Description string      `json:"description,omitempty"`
+	InputSchema *InputSchema `json:"inputSchema,omitempty"`
+}
+
+type InputSchema struct {
+	Type                 string                 `json:"type"`
+	Properties           map[string]interface{} `json:"properties,omitempty"`
+	AdditionalProperties bool                   `json:"additionalProperties,omitempty"`
+}
+
+// ToolResult represents the result of calling a tool
+type ToolResult struct {
+	Content []ToolContent `json:"content"`
+}
+
+type ToolContent struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+}
+
 // Resource represents a resource
 type Resource struct {
-	URI     string `json:"uri"`
+	URI      string `json:"uri"`
+	Name     string `json:"name,omitempty"`
 	MIMEType string `json:"mimeType,omitempty"`
 }
 
-// InitializeResponse returns the result of initializing the server
-func InitializeResponse(server *Server) Response {
-	return Response{
-		JSONRPC: "2.0",
-		ID:      fmt.Sprintf("init-%d", time.Now().UnixNano()),
-		Result: map[string]string{
-			"protocolVersion": server.Version,
-			"serverInfo": map[string]string{
-				"name": server.Name,
-				"version": server.HOUDINI_VERSION,
-				"binaryPath": filepath.Join(server.HOUDINI_PATH, "houdini.exe"),
-			},
-		},
-	}
+// Server state
+type Server struct {
+	Name            string
+	Version         string
+	HOUDINI_PATH    string
+	HOUDINI_VERSION string
 }
 
 // getTools returns all available tools
-func getTools(server *Server) []Tool {
+func getTools() []Tool {
 	return []Tool{
-		{Name: "get_version", Description: "Houdini Engine version"},       
+		{Name: "get_version", Description: "Houdini Engine version"},
 		{Name: "check_install", Description: "Check Houdini installation status"},
 		{Name: "list_dcc_plugins", Description: "List DCC plugins (Maya, Unity, Unreal, 3ds Max)"},
 		{Name: "get_license_status", Description: "Get license status via sesictrl"},
@@ -81,19 +84,19 @@ func getTools(server *Server) []Tool {
 }
 
 // getResources returns available resources
-func getResources(server *Server) []Resource {
+func getResources() []Resource {
 	return []Resource{
-		{URI: "houdini://install-info", MIMEType: "application/json"},
-		{URI: "houdini://license", MIMEType: "application/json"},
+		{URI: "houdini://install-info", Name: "Houdini Install Info", MIMEType: "application/json"},
+		{URI: "houdini://license", Name: "Houdini License Status", MIMEType: "application/json"},
 	}
 }
 
 // findHoudiniBinary searches for houdini executable
 func findHoudiniBinary() string {
 	candidates := []string{
-		filepath.Join(server.HOUDINI_PATH, "bin", "houdini.exe"),
-		filepath.Join(server.HOUDINI_PATH, "houdini.exe"),
-		filepath.Join(server.HOUDINI_PATH, "bin", "houdini-bin.exe"),
+		filepath.Join("C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini", "bin", "houdini.exe"),
+		filepath.Join("C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini", "houdini.exe"),
+		filepath.Join("C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini", "bin", "houdini-bin.exe"),
 	}
 	for _, p := range candidates {
 		if _, err := os.Stat(p); err == nil {
@@ -125,20 +128,12 @@ func callTool(server *Server, name string) (*ToolResult, error) {
 		var status string
 		if binary != "" {
 			status = "✅ Houdini binary found"
-		} else if filepath.Join(server.HOUDINI_PATH, "hengine.exe") != "" {
-			status = "⚠️ Houdini Engine only (no full Houdini)"
 		} else {
 			status = "❌ Houdini not found"
 		}
-		binaryPath := binary
-		if binaryPath == "" { binaryPath = "not found" }
-		hePath := filepath.Join(server.HOUDINI_PATH, "hengine.exe")
-		hePathStr := "not found"
-		if _, err := os.Stat(hePath); err == nil { hePathStr = hePath }
 		return &ToolResult{
 			Content: []ToolContent{
-				{Type: "text", Text: fmt.Sprintf("%s\nPath: %s\nVersion: %s\nBinary: %s\nHEngine: %s",
-					status, server.HOUDINI_PATH, server.HOUDINI_VERSION, binaryPath, hePathStr)},
+				{Type: "text", Text: fmt.Sprintf("%s\nPath: %s\nVersion: %s\nBinary: %s", status, server.HOUDINI_PATH, server.HOUDINI_VERSION, binary)},
 			},
 		}, nil
 	case "list_dcc_plugins":
@@ -159,43 +154,55 @@ func callTool(server *Server, name string) (*ToolResult, error) {
 	case "get_license_status":
 		sesictrl := filepath.Join(server.HOUDINI_PATH, "bin", "sesictrl.exe")
 		if _, err := os.Stat(sesictrl); err != nil {
-			return &ToolResult{
-				Content: []ToolContent{{Type: "text", Text: "❌ sesictrl not found"}},
-			}, nil
+			return &ToolResult{Content: []ToolContent{{Type: "text", Text: "❌ sesictrl not found"}}}, nil
 		}
 		out, err := runCommand(sesictrl, "-p")
 		if err != nil {
-			return &ToolResult{
-				Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("License check failed: %s", err)}},
-			}, nil
+			return &ToolResult{Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("License check failed: %s", err)}}}, nil
 		}
-		return &ToolResult{
-			Content: []ToolContent{{Type: "text", Text: out}},
-		}, nil
+		return &ToolResult{Content: []ToolContent{{Type: "text", Text: out}}}, nil
 	case "get_install_path":
-		return &ToolResult{
-			Content: []ToolContent{{Type: "text", Text: server.HOUDINI_PATH}},
-		}, nil
+		return &ToolResult{Content: []ToolContent{{Type: "text", Text: server.HOUDINI_PATH}}}, nil
 	default:
-		return &ToolResult{
-			Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("Unknown tool: %s", name)}},
-		}, nil
+		return &ToolResult{Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("Unknown tool: %s", name)}}}, nil
 	}
 }
 
-// ToolCallParam holds parameters for a tool call
-type ToolCallParam struct {
-	Name string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments,omitempty"`
-}
-
-// ResourceReadParam holds parameters for reading a resource
-type ResourceReadParam struct {
-	URI string `json:"uri"`
+// readResource reads a resource
+func readResource(server *Server, uri string) ([]byte, error) {
+	switch uri {
+	case "houdini://install-info":
+		info := map[string]interface{}{
+			"path":         server.HOUDINI_PATH,
+			"version":      server.HOUDINI_VERSION,
+			"binary":       findHoudiniBinary(),
+			"hengine":      filepath.Join(server.HOUDINI_PATH, "bin", "hengine.exe"),
+		}
+		return json.Marshal(info)
+	case "houdini://license":
+		sesictrl := filepath.Join(server.HOUDINI_PATH, "bin", "sesictrl.exe")
+		if _, err := os.Stat(sesictrl); err != nil {
+			return []byte("License check failed: sesictrl not found"), nil
+		}
+		out, err := runCommand(sesictrl, "-p")
+		if err != nil {
+			return []byte(fmt.Sprintf("License check failed: %s", err)), nil
+		}
+		return []byte(out), nil
+	default:
+		return nil, fmt.Errorf("unknown resource: %s", uri)
+	}
 }
 
 // Main handles JSON-RPC requests
 func main() {
+	server := &Server{
+		Name:            "houdini-mcp",
+		Version:         "0.1.0",
+		HOUDINI_PATH:    "C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini",
+		HOUDINI_VERSION: "19.5.682",
+	}
+
 	scanner := bufio.NewScanner(os.Stdin)
 	buf := make([]byte, 1024*1024)
 	scanner.Buffer(buf, 10*1024*1024)
@@ -212,92 +219,105 @@ func main() {
 			continue
 		}
 
-		resp, err := handleRequest(req)
-		if err != nil {
-			resp = Response{
+		resp := handleRequest(server, req)
+		out, _ := json.Marshal(resp)
+		fmt.Println(string(out))
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "scanner error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func handleRequest(server *Server, req Request) Response {
+	switch req.Method {
+	case "initialize":
+		return Response{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result: map[string]interface{}{
+				"protocolVersion": "2025-03-26",
+				"serverInfo": map[string]string{
+					"name":    server.Name,
+					"version": server.Version,
+				},
+				"capabilities": map[string]interface{}{
+					"tools":    map[string]interface{}{},
+					"resources": map[string]interface{}{},
+				},
+			},
+		}
+	case "tools/list":
+		return Response{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  map[string]interface{}{"tools": getTools()},
+		}
+	case "tools/call":
+		var params struct {
+			Name      string                 `json:"name"`
+			Arguments map[string]interface{} `json:"arguments,omitempty"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{
 				JSONRPC: "2.0",
 				ID:      req.ID,
 				Error:   &ErrorObject{Code: -32600, Message: err.Error()},
 			}
 		}
-		out, _ := json.Marshal(resp)
-		fmt.Println(string(out))
-	}
-}
-
-func handleRequest(req Request) (Response, error) {
-	server := NewServer{
-		Name:            "houdini-mcp",
-		Version:         "0.1.0",
-		HOUDINI_PATH:    "C:\\Program Files\\Side Effects Software\\Houdini Engine\\Houdini",
-		HOUDINI_VERSION: "19.5.682",
-	}
-
-	switch req.Method {
-	case "initialize":
-		return InitializeResponse(server), nil
-	case "tools/list":
-		return getTools(server), nil
-	case "tools/call":
-		var params ToolCallParam
-		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return Response{}, fmt.Errorf("invalid params: %w", err)
+		result, err := callTool(server, params.Name)
+		if err != nil {
+			return Response{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Error:   &ErrorObject{Code: -32600, Message: err.Error()},
+			}
 		}
-		result := callTool(server, params.Name)
 		return Response{
 			JSONRPC: "2.0",
 			ID:      req.ID,
 			Result:  result,
-		}, nil
+		}
 	case "resources/list":
-		return getResources(server), nil
+		return Response{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  map[string]interface{}{"resources": getResources()},
+		}
 	case "resources/read":
-		var params ResourceReadParam
+		var params struct {
+			URI string `json:"uri"`
+		}
 		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return Response{}, fmt.Errorf("invalid params: %w", err)
+			return Response{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Error:   &ErrorObject{Code: -32600, Message: err.Error()},
+			}
 		}
 		res, err := readResource(server, params.URI)
 		if err != nil {
-			return Response{}, err
+			return Response{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Error:   &ErrorObject{Code: -32600, Message: err.Error()},
+			}
 		}
 		return Response{
 			JSONRPC: "2.0",
 			ID:      req.ID,
 			Result: map[string]interface{}{
 				"contents": []map[string]interface{}{
-					{"uri": params.URI, "mimeType": "application/json", "text": res},
+					{"uri": params.URI, "mimeType": "application/json", "text": string(res)},
 				},
 			},
-		}, nil
+		}
 	default:
 		return Response{
 			JSONRPC: "2.0",
 			ID:      req.ID,
 			Error:   &ErrorObject{Code: -32601, Message: fmt.Sprintf("Method not found: %s", req.Method)},
-		}, nil
-	}
-}
-
-func readResource(server *Server, uri string) ([]byte, error) {
-	switch uri {
-	case "houdini://install-info":
-		info := map[string]interface{}{
-			"path":         server.HOUDINI_PATH,
-			"version":      server.HOUDINI_VERSION,
-			"binary":       findHoudiniBinary(),
 		}
-		return json.Marshal(info)
-	case "houdini://license":
-		sesictrl := filepath.Join(server.HOUDINI_PATH, "bin", "sesictrl.exe")
-		if _, err := os.Stat(sesictrl); err != nil {
-			return []byte("License check failed: sesictrl not found"), nil
-		}
-		out, err := runCommand(sesictrl, "-p")
-		if err != nil {
-			return []byte(fmt.Sprintf("License check failed: %s", err)), nil
-		}
-		return []byte(out), nil
-	default:
-		return nil, fmt.Errorf("unknown resource: %s", uri)
 	}
 }

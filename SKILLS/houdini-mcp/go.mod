@@ -1,3 +1,1 @@
-module houdini-mcp
-
-go 1.22
+module houdini-mcp\n\ngo 1.22
