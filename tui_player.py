@@ -486,9 +486,15 @@ class MusicPlayerApp(App):
     /* ── mini-disc era LCD console ─────────────────────────────── */
     Screen { background: #08090a; }
 
-    #main { layout: horizontal; }
-    #sidebar { width: 32%; border-right: solid #2a3a1c; padding: 1; }
-    #shell { width: 68%; layout: horizontal; }
+    #main { layout: horizontal; height: 1fr; }
+    #sidebar { width: 26%; border-right: solid #2a3a1c; padding: 1; }
+    #shell { width: 1fr; layout: horizontal; }
+    #aside {
+        width: 24%;
+        border-left: solid #2a3a1c;
+        padding: 1;
+        layout: vertical;
+    }
     #gutter {
         width: 4;
         padding: 1 0 0 0;
@@ -537,6 +543,15 @@ class MusicPlayerApp(App):
     }
     #lcd-track { width: 2fr; }
 
+    .side-box {
+        width: 100%;
+        height: 12;
+        padding: 0 1;
+        margin-bottom: 1;
+        background: #0c1507;
+        border: ascii #2a4a18;
+        color: #b6ff3d;
+    }
     #viz-head { height: 1; color: #b6ff3d; text-style: bold; }
     #viz-full {
         height: 1fr;
@@ -550,6 +565,7 @@ class MusicPlayerApp(App):
         layout: horizontal;
         align: center middle;
         background: #0c1507;
+        border-top: solid #2a3a1c;
         overflow: hidden;
     }
     #controls Button {
@@ -626,6 +642,9 @@ class MusicPlayerApp(App):
             with Vertical(id="sidebar"):
                 yield Input(placeholder="Search tracks...", id="search")
                 yield TrackList(self.filtered_tracks, id="tracklist")
+            with Vertical(id="aside"):
+                yield Static("", id="queue", classes="side-box")
+                yield Static("", id="stats", classes="side-box")
             with Horizontal(id="shell"):
                 yield Static("", id="gutter")
                 with Vertical(id="player"):
@@ -636,17 +655,17 @@ class MusicPlayerApp(App):
                         yield Static("", id="lcd-track", classes="lcdbox")
                         yield Static("", id="lcd-scrob", classes="lcdbox")
                         yield Static("", id="lcd-player", classes="lcdbox")
-                    with Horizontal(id="controls"):
-                        yield Button("<<", id="btn-prev")
-                        yield Button(">", id="btn-play", variant="success")
-                        yield Button("||", id="btn-stop", variant="error")
-                        yield Button(">>", id="btn-next")
-                        yield Button("RND", id="btn-shuffle")
-                        yield Button("PAL", id="btn-palette")
-                        yield Button("BLK", id="btn-blackout")
-                        yield Button("VIS", id="btn-vis")
-                        yield Button("DBG", id="btn-debug")
-                        yield Button("EXIT", id="btn-quit", variant="error")
+        with Horizontal(id="controls"):
+            yield Button("<<", id="btn-prev")
+            yield Button(">", id="btn-play", variant="success")
+            yield Button("||", id="btn-stop", variant="error")
+            yield Button(">>", id="btn-next")
+            yield Button("RND", id="btn-shuffle")
+            yield Button("PAL", id="btn-palette")
+            yield Button("BLK", id="btn-blackout")
+            yield Button("VIS", id="btn-vis")
+            yield Button("DBG", id="btn-debug")
+            yield Button("EXIT", id="btn-quit", variant="error")
 
 
     def on_mount(self):
