@@ -92,6 +92,26 @@ def log_play(track: Track, played_at: int, scrobbled: int = 1):
         """, (str(track.path), track.artist, track.title, track.duration, played_at, scrobbled))
 
 
+def db_stats() -> dict:
+    """Totals for the STATS pane (never raises)."""
+    out = {"plays": 0, "scrobbled": 0, "artists": 0, "last": "--:--"}
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            out["plays"] = conn.execute("SELECT COUNT(*) FROM plays").fetchone()[0]
+            out["scrobbled"] = conn.execute(
+                "SELECT COUNT(*) FROM plays WHERE scrobbled=1").fetchone()[0]
+            out["artists"] = conn.execute(
+                "SELECT COUNT(DISTINCT artist) FROM plays").fetchone()[0]
+            row = conn.execute(
+                "SELECT played_at, artist FROM plays ORDER BY played_at DESC LIMIT 1").fetchone()
+            if row and row[0]:
+                out["last"] = time.strftime("%m/%d %H:%M", time.localtime(row[0]))
+                out["last_artist"] = row[1][:12]
+    except Exception:
+        pass
+    return out
+
+
 def db_total() -> int:
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -914,6 +934,21 @@ class MusicPlayerApp(App):
         lines = [self._md("UP NEXT", 30)] + upcoming[:8]
         try:
             self.query_one("#queue", Static).update(chr(10).join(lines))
+        except Exception:
+            pass
+
+        st = db_stats()
+        stats = [
+            self._md("PLAYS", 30),
+            self._md(f"  logged  {st['plays']:>6}", 30),
+            self._md(f"  sent    {st['scrobbled']:>6}", 30),
+            self._md(f"  artists {st['artists']:>6}", 30),
+            self._md("LAST", 30),
+            self._md(f"  {st['last']}", 30),
+            self._md(f"  {st.get('last_artist', '-')}", 30),
+        ]
+        try:
+            self.query_one("#stats", Static).update(chr(10).join(stats))
         except Exception:
             pass
 
