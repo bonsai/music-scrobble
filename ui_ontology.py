@@ -35,8 +35,8 @@ class Region:
 
 
 REGIONS: List[Region] = [
-    Region("logo", "brand / identity", 5, title="OH MY LOGO",
-           data="static: oh-my-logo 3 lines"),
+    Region("logo", "brand / identity", 7, title="OH MY LOGO",
+           data="static: AMPy 5-line ASCII wordmark"),
     Region("events", "event status blink area", 4, title="EVENT STATUS",
            data="deque(maxlen=2): BOOT/SCAN/PLAY/SCRB/BTN/DBG"),
     Region("marquee", "song info marquee", 3, title="SONG INFO",
