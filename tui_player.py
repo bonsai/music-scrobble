@@ -674,6 +674,8 @@ class MusicPlayerApp(App):
                            ("#lcd-player", "PLAYER"), ("#events", "EVENT STATUS"),
                            ("#marquee", "SONG INFO")):
             self.query_one(wid).border_title = title
+        self.query_one("#queue", Static).border_title = "QUEUE"
+        self.query_one("#stats", Static).border_title = "STATS"
         self.query_one("#logo", Static).border_title = "OH MY LOGO"
         logo = [
             "  ###   #   #  ####   #   #",
@@ -882,6 +884,7 @@ class MusicPlayerApp(App):
         self._render_track_box()
         self._render_scrobble_box()
         self._render_player_box()
+        self._render_aside()
         self.query_one("#btn-play", Button).label = "||" if self.playing else ">"
         self.query_one("#btn-shuffle", Button).label = "RND" if self.shuffle else "RND"
         self.query_one("#btn-shuffle", Button).variant = "primary" if self.shuffle else "default"
@@ -895,6 +898,24 @@ class MusicPlayerApp(App):
         if len(text) > width:
             return text[: max(0, width - 2)] + ".."
         return text.ljust(width)
+
+    def _render_aside(self) -> None:
+        """Right pane: up-next queue + library stats."""
+        upcoming: List[str] = []
+        if self.filtered_tracks:
+            if self.shuffle:
+                upcoming = ["  (random)"]
+            else:
+                start = max(0, self.current_index + 1)
+                for t in self.filtered_tracks[start:start + 8]:
+                    upcoming.append(f"  {self._md(t.artist, 10)} {t.title[:14]}")
+        if not upcoming:
+            upcoming = ["  (end of list)"]
+        lines = [self._md("UP NEXT", 30)] + upcoming[:8]
+        try:
+            self.query_one("#queue", Static).update(chr(10).join(lines))
+        except Exception:
+            pass
 
     def _render_track_box(self) -> None:
         track = self.current_track
