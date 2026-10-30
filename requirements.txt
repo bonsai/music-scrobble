@@ -1,0 +1,5 @@
+# TUI player deps
+textual>=0.60
+mutagen>=1.47
+# fallback scrobbler CLI
+requests>=2.31

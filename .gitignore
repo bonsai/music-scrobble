@@ -1,0 +1,6 @@
+.lastfm_session
+.lastfm_creds
+.lastfm_errors.log
+.library_cache.json
+__pycache__/
+plays.db
