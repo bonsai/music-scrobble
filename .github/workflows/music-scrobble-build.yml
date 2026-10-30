@@ -1,0 +1,33 @@
+name: Build music-scrobble
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          check-latest: true
+
+      - run: go mod tidy
+
+      - run: go build -o music-scrobble.exe server.go
+
+      - run: ls -la music-scrobble.exe || dir music-scrobble.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: music-scrobble-${{ matrix.os }}
+          path: music-scrobble.exe
+          retention-days: 7
