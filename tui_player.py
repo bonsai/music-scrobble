@@ -504,7 +504,7 @@ class MusicPlayerApp(App):
     #main.-blackout #search { color: #14180f; border: ascii #18200f; }
 
     #logo {
-        height: 5;
+        height: 7;
         padding: 0 1;
         color: #b6ff3d;
         border: ascii #3f6b24;
@@ -657,9 +657,11 @@ class MusicPlayerApp(App):
             self.query_one(wid).border_title = title
         self.query_one("#logo", Static).border_title = "OH MY LOGO"
         logo = [
-            r"   o h   m y   l o g o   ",
-            r"   A M P y  /  M D   C O M P O   ",
-            r"   n o   t i m e   t o   w a s t e   ",
+            "  ###   #   #  ####   #   #",
+            " #   #  ## ##  #   #  #   #",
+            " #####  # # #  ####   #   #",
+            " #   #  #   #  #       ####",
+            " #   #  #   #  #          #",
         ]
         self.query_one("#logo", Static).update(chr(10).join(logo))
         self.scrobbled_count = db_total()
