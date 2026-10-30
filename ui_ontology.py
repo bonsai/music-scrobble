@@ -54,16 +54,22 @@ LCD_PANELS: List[Region] = [
 ]
 
 CHROME: List[Region] = [
-    Region("main", "root container", 0),
-    Region("sidebar", "library list", 0, border="solid",
+    Region("main", "root 3-pane container", 0),
+    Region("sidebar", "pane 1 - library list", 0, border="solid",
            data="filtered_tracks"),
     Region("search", "filter input", 3),
     Region("tracklist", "track list", 0),
-    Region("shell", "right pane wrapper", 0),
+    Region("aside", "pane 3 - queue + stats", 0, border="solid",
+           data="filtered_tracks, plays.db"),
+    Region("queue", "up-next list", 12, data="filtered_tracks, shuffle"),
+    Region("stats", "library statistics", 12, data="db_stats()"),
+    Region("shell", "pane 2 wrapper", 0),
     Region("gutter", "debug line numbers", 0, border="none",
            data="show_lines"),
     Region("player", "LCD pane", 0),
 ]
+
+PANE_WIDTHS = {"sidebar": 26, "aside": 24}   # %, centre pane takes the rest
 
 VISUALIZER_VIEW: List[Region] = [
     Region("viz-head", "view title", 1),
@@ -239,6 +245,26 @@ async def check(app) -> List[Finding]:
             await pilot.pause()
             app.action_stop()
             await pilot.pause()
+
+        # R11: three columns + full-width control bar
+        main = app.query_one("#main")
+        side = app.query_one("#sidebar")
+        aside = app.query_one("#aside")
+        centre = app.query_one("#shell")
+        total = main.region.width
+        for name, expect in PANE_WIDTHS.items():
+            got = app.query_one(f"#{name}").region.width * 100 / total
+            if abs(got - expect) > 6:
+                out.append(Finding("warn", "R11.pane",
+                                   f"#{name} is {got:.0f}% (design {expect}%)"))
+        if centre.region.width <= 0:
+            out.append(Finding("error", "R11.pane", "#shell has no width"))
+        if side.region.right > aside.region.x or aside.region.right > centre.region.x:
+            out.append(Finding("error", "R11.pane", "panes overlap"))
+        ctl_row = app.query_one("#controls")
+        if ctl_row.region.width != app.size.width:
+            out.append(Finding("warn", "R11.controls",
+                               f"control bar {ctl_row.region.width} != screen {app.size.width}"))
 
         # R10: total vertical budget
         used = sum(app.query_one(f"#{r.id}").region.height for r in REGIONS)
