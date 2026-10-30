@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Houdini Fire – WebGL (WASM)</title>
+  <style>
+    body { margin:0; overflow:hidden; }
+    canvas { display:block; }
+    #status { position:fixed; top:10px; left:10px; color:#fff; background:rgba(0,0,0,0.5); padding:8px; font-family:sans-serif; }
+    #generateBtn { position:fixed; top:10px; right:10px; padding:8px 16px; font-size:14px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div id="status">Loading fire...</div>
+  <button id="generateBtn">Generate Fire</button>
+
+  <script type="module">
+    import { Engine } from 'houdini-engine';
+    import * as THREE from 'three';
+
+    const status = document.getElementById('status');
+    const generateBtn = document.getElementById('generateBtn');
+
+    // -------------------------------------------------
+    // 1️⃣ FastAPI から fire.bgeo を取得
+    // -------------------------------------------------
+    async function fetchFireBgeo() {
+      status.textContent = "Fetching fire geometry...";
+      try {
+        const resp = await fetch("/fire/bgeo", { credentials: "same-origin" });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        return url; // this is the .bgeo file path/URL
+      } catch (e) {
+        status.textContent = `Error fetching fire: ${e.message}`;
+        throw e;
+      }
+    }
+
+    // -------------------------------------------------
+    // 2️⃣ Houdini Engine セッションを開始し、 geometry をロード
+    // -------------------------------------------------
+    async function initEngine(bgeoUrl) {
+      status.textContent = "Initializing Houdini Engine...";
+      const engine = await Engine.create();
+      const session = await engine.createSession();
+
+      // Load the .bgeo file that we fetched from FastAPI
+      await session.loadFile(bgeoUrl);
+
+      // Get the node that contains the geometry (default /out1)
+      const node = await session.getNode('/out1');
+      await session.cookNode(node);
+
+      // Extract geometry attributes
+      const hapiGeom = await node.getGeometry();
+      const positions = hapiGeom.getFloatArray('P');
+      const primAcrossEdges = hapiGeom.getUint32Array('primacrossedges');
+
+      // Build Three.js mesh
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setIndex(primAcrossEdges);
+
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0 },
+          uColor: { value: new THREE.Color(0xff4500) }
+        },
+        vertexShader: `
+          attribute vec3 position;
+          uniform float uTime;
+          void main() {
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform float uTime;
+          uniform vec3 uColor;
+          void main() {
+            float intensity = smoothstep(0.0, 1.5, length(position) * 0.2 + uTime);
+            vec3 col = uColor * intensity;
+            gl_FragColor = vec4(col, intensity);
+          }
+        `,
+        transparent: true,
+        depthWrite: false
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
+
+      // ---------------------------------
+      // 3️⃣ アニメーションループ
+      // ---------------------------------
+      const clock = new THREE.Clock();
+      function animate() {
+        material.uniforms.uTime.value += clock.getDelta();
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      }
+      animate();
+
+      // ---------------------------------
+      // 4️⃣ リサイズハンドラ
+      // ---------------------------------
+      window.addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+
+      status.textContent = "Fire loaded – rotating!";
+    }
+
+    // -------------------------------------------------
+    // UI: Generate fire when button clicked
+    // -------------------------------------------------
+    generateBtn.addEventListener('click', async () => {
+      generateBtn.disabled = true;
+      status.textContent = "Generating fire via FastAPI...";
+      try {
+        // POST to FastAPI to generate (this also creates fire.bgeo)
+        const genResp = await fetch("/fire/generate", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" }
+        });
+        if (!genResp.ok) throw new Error(`Generation failed: ${genResp.status}`);
+        // After generation, fetch the .bgeo and load it
+        const bgeoUrl = await fetchFireBgeo();
+        await initEngine(bgeoUrl);
+      } catch (err) {
+        status.textContent = `Error: ${err.message}`;
+      } finally {
+        generateBtn.disabled = false;
+      }
+    });
+
+    // -------------------------------------------------
+    // 初期化: サーバ起動時に自動生成（任意）
+    // -------------------------------------------------
+    (async () => {
+      try {
+        const genResp = await fetch("/fire/generate", { method: "POST", credentials: "same-origin" });
+        if (!genResp.ok) throw new Error(`Auto-generation failed: ${genResp.status}`);
+        const bgeoUrl = await fetchFireBgeo();
+        await initEngine(bgeoUrl);
+      } catch (e) {
+        status.textContent = `Auto-init error: ${e.message}`;
+      }
+    })();
+  </script>
+</body>
+</html>
