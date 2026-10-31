@@ -58,19 +58,22 @@ Start the player from the repository directory:
 python tui_player.py
 ```
 
-Wait for the library scan, select a track, and press Enter or Space to play it. A scrobble is submitted after 15 seconds of playback. The `MUSIC_ROOT` folder and Last.fm session must be available. The player also uses `plays.db` for local play history.
+Wait for the library scan, focus the track list, highlight a track, and press Enter or Space to play it from the beginning. A scrobble is submitted after 15 seconds of playback. The `MUSIC_ROOT` folder and Last.fm session must be available. The player also uses `plays.db` for local play history.
 
 Keyboard shortcuts:
 
 | Key | Action |
 | --- | --- |
 | `q` | Quit |
-| `Space` | Play the selected track, or stop/resume the current track |
+| `Enter` / `Space` with track list focused | Play or restart the highlighted track |
+| App `Space` shortcut | Stop playback or restart the loaded track from the beginning |
 | `n` / `p` | Next / previous track |
 | `s` | Stop playback |
 | `/` | Focus track search |
 | `r` | Toggle shuffle |
 | `b` | Toggle blackout mode |
+
+The Play control and app's Space shortcut start the highlighted track only when no track is loaded; otherwise they control the loaded track. The app shortcut applies when the focused widget does not handle Space. Playback restarts from the beginning after stopping.
 
 The controls shown in the player include previous (`<<`), play (`>`), stop (`||`), next (`>>`), shuffle (`RND`), palette (`PAL`), blackout (`BLK`), visualizer (`VIS`), debug (`DBG`), and exit (`EXIT`).
 
@@ -92,16 +95,9 @@ python scrobbler.py resend
 
 `python scrobbler.py play FOLDER` submits MP3 files from a folder.
 
-## Go MCP server
+## Go MCP prototype
 
-The Go server uses the stdio transport and requires Go 1.21 or newer:
-
-```powershell
-go build -o music-scrobble.exe server.go
-.\music-scrobble.exe
-```
-
-It exposes `scrobble`, `play_folder`, and `stats` MCP tools. This server is a prototype: its scrobble tool currently reports whether `LASTFM_API_KEY` is set but does not send a Last.fm request, and its Go `stats` tool is a stub. Use the Python player or CLI for actual Last.fm scrobbling.
+The Go server is an unfinished stdio MCP prototype. Its current source has a [build blocker (#1)](https://github.com/bonsai/music-scrobble/issues/1), and [MCP client integration (#7)](https://github.com/bonsai/music-scrobble/issues/7) is still pending. It advertises `scrobble`, `play_folder`, and `stats` tools, but its scrobble function makes no Last.fm request and its statistics are a stub ([#2](https://github.com/bonsai/music-scrobble/issues/2)). Use the Python player or CLI above for Last.fm scrobbling.
 
 ## UI diagnostics
 
