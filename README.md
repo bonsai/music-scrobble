@@ -21,7 +21,7 @@ py -3.12 -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-The player reads your music folder from `MUSIC_ROOT`. Set it in the same PowerShell session before launching the app:
+The player reads your music folder from `MUSIC_ROOT`, which defaults to `C:\Users\dance\Music\mp3`. Set it to your own folder in the same PowerShell session before launching the app:
 
 ```powershell
 $env:MUSIC_ROOT = "D:\Music"
@@ -48,7 +48,7 @@ Choose the folder that contains your music files. The player scans supported fil
 
    This saves `.lastfm_session` and `.lastfm_creds` beside the scripts, then removes the temporary `.lastfm_token`. The credentials file contains the API key and shared secret in plain text, so keep it private.
 
-These local credential and state files are listed in `.gitignore`; do not commit them. The player and CLI can also read `LASTFM_SESSION_KEY`, `LASTFM_API_KEY`, and `LASTFM_API_SECRET` from the environment. `LASTFM_USER` changes the username displayed in the player; the `lastfm` CLI command currently checks the `kanalsound` account directly.
+These local credential and state files are listed in `.gitignore`; do not commit them. The player and CLI can also read `LASTFM_SESSION_KEY`, `LASTFM_API_KEY`, and `LASTFM_API_SECRET` from the environment. `LASTFM_USER` changes the username displayed in the player and defaults to `kanalsound`; the `lastfm` CLI command currently checks that account directly.
 
 ## Play and scrobble
 
@@ -112,5 +112,9 @@ python ui_ontology.py          # print a readable check report
 ## Local data and Last.fm corrections
 
 The app stores local history in `plays.db`, a library cache in `.library_cache.json`, and API errors in `.lastfm_errors.log`. These files are ignored by Git along with `.lastfm_token`, `.lastfm_session`, and `.lastfm_creds`.
+
+The SQLite `plays` table contains `id`, `path` (unique), `artist`, `title`, `duration`, `played_at`, and `scrobbled`. When another play is recorded for the same path, its existing row is updated.
+
+The error log's request fields exclude the session key (`sk`) and API signature (`api_sig`); the shared secret is never added to those fields. The API key and track details are still logged, so keep the log private.
 
 Last.fm does not provide an API to undo a submitted scrobble. If you need to remove one, use the Last.fm website's library page.
