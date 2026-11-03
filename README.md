@@ -31,7 +31,7 @@ Choose the folder that contains your music files. The player scans supported fil
 
 ## Connect Last.fm
 
-1. Create an application at [Last.fm API account creation](https://www.last.fm/api/account/create). Keep its API key and shared secret private; Last.fm shows the shared secret on the application page.
+1. Create an application at [Last.fm API account creation](https://www.last.fm/api/account/create). Save its API key and shared secret securely while the application page is open; keep both private for the authorization steps below.
 2. In PowerShell, run the authorization step:
 
    ```powershell
