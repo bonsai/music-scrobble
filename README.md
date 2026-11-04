@@ -58,7 +58,7 @@ Start the player from the repository directory:
 python tui_player.py
 ```
 
-Wait for the library scan, focus the track list, highlight a track, and press Enter or Space to play it from the beginning. A scrobble is submitted after 15 seconds of playback. The `MUSIC_ROOT` folder and Last.fm session must be available. The player also uses `plays.db` for local play history.
+Wait for the library scan, focus the track list, highlight a track, and press Enter or Space to play it from the beginning. A scrobble is submitted after 15 seconds of playback. Look for `SCRB OK` in the event log and `LAST.FM OK` in the Last.fm panel as the player's success indication. The `MUSIC_ROOT` folder and Last.fm session must be available. The player also uses `plays.db` for local play history.
 
 Keyboard shortcuts:
 
