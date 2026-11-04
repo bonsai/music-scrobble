@@ -4,3 +4,4 @@
 .library_cache.json
 __pycache__/
 plays.db
+.lastfm_token
