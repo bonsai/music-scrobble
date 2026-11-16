@@ -212,7 +212,15 @@ func handleRequest(req Request) Response {
 		default:
 			return Response{JSONRPC: "2.0", ID: req.ID, Error: &ErrorObject{Code: -32601, Message: fmt.Sprintf("Unknown tool: %s", params.Name)}}
 		}
-		return Response{JSONRPC: "2.0", ID: req.ID, Result: result}
+		encoded, err := json.Marshal(result)
+		if err != nil {
+			return Response{JSONRPC: "2.0", ID: req.ID, Error: &ErrorObject{Code: -32603, Message: "Failed to encode tool result"}}
+		}
+		return Response{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  ToolResult{Content: []ToolContent{{Type: "text", Text: string(encoded)}}},
+		}
 	case "resources/list":
 		return Response{
 			JSONRPC: "2.0",
